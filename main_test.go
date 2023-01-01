@@ -32,11 +32,18 @@ func Test_firstCommentInReader(t *testing.T) {
 		"// Foo\n// \tBar", "Foo\n\tBar",
 		"// Foo\n// Bar\n/* Baz */", "Foo\nBar",
 		"// Foo\n// Bar\nvar x", "Foo\nBar",
+		"\npackage something\n// Foo\n//   Bar\nvar x", "Foo\n  Bar",
+		"", "",
+		"package something\n\nvar x\n", "",
+		"# Not in the\n# expected language\n", "",
 	}
 
 	for i := 0; i < len(testCases); i += 2 {
 		comment, ok, _ := firstCommentInReader(strings.NewReader(testCases[i]), markers{"//", "/*", "*/"})
-		if !ok || comment != testCases[i+1] {
+		if ok && comment != testCases[i+1] {
+			t.FailNow()
+		}
+		if !ok && testCases[i+1] != "" {
 			t.FailNow()
 		}
 	}

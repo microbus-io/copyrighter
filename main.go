@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package main runs a code generator that injects a copyright notice to source files.
 package main
 
 import (
@@ -61,9 +62,18 @@ var (
 )
 
 // main runs a code generator that injects a copyright notice to source files.
-// To launch, add to the source directory a copyright.go file with a single comment holding the copyright
-// notice and a go:generate directive. See example in this directory.
 func main() {
+	err := mainErr()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%+v\n", err)
+		os.Exit(1)
+	}
+}
+
+// mainErr scans the current directory for a copyright.go file and applies the first comment
+// in that file to all other source files in the directory.
+func mainErr() error {
+	// Parse CLI flags
 	flag.BoolVar(&flagRecurse, "r", false, "Recurse sub-directories")
 	flag.BoolVar(&flagVerbose, "v", false, "Verbose")
 	flag.StringVar(&flagExclude, "x", "", "Comma-separated list of extensions to exclude")
@@ -75,16 +85,7 @@ func main() {
 	if flagVerbose {
 		fmt.Println("Copyrighter")
 	}
-	err := mainErr()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%+v\n", err)
-		os.Exit(1)
-	}
-}
-
-// mainErr scans the current directory for a copyright.go file and applies the first comment
-// in that file to all other source files in the directory.
-func mainErr() error {
+	// Load the first found comment in copyright.go
 	cwd, _ := os.Getwd()
 	noticeToApply, ok, err := firstCommentInFile("copyright.go")
 	if err != nil {
@@ -93,6 +94,7 @@ func mainErr() error {
 	if !ok {
 		return errors.New("no comment found in copyright.go")
 	}
+	// Apply the comment to the files in the current directory
 	err = processDir(".", noticeToApply)
 	if err != nil {
 		return err
@@ -173,11 +175,10 @@ func processDir(dirPath string, noticeToApply string) error {
 			fmt.Println("  " + filepath.Join(cwd, dirPath, de.Name()))
 		}
 	}
-
 	return nil
 }
 
-// firstCommentInFile returns the first comment it finds in a file.
+// firstCommentInFile returns the first comment it finds in the first 1024 lines in a file.
 func firstCommentInFile(filename string) (comment string, ok bool, err error) {
 	ext := filepath.Ext(filename)
 	lang, ok := languages[ext]
@@ -193,12 +194,14 @@ func firstCommentInFile(filename string) (comment string, ok bool, err error) {
 	return firstCommentInReader(file, lang)
 }
 
-// firstCommentInReader returns the first comment it finds in a reader.
+// firstCommentInReader returns the first comment it finds in the first 1024 lines in a reader.
 func firstCommentInReader(r io.Reader, lang markers) (comment string, ok bool, err error) {
 	var aggregated strings.Builder
 	var inMulti, inSingle, exit bool
+	var lineNum int
 	scanner := bufio.NewScanner(r)
-	for !exit && scanner.Scan() {
+	for !exit && lineNum < 1024 && scanner.Scan() {
+		lineNum++
 		line := scanner.Text()
 		trimmedLine := strings.TrimSpace(line)
 		switch {
