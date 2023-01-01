@@ -85,7 +85,7 @@ func mainErr() error {
 	if flagVerbose {
 		fmt.Println("Copyrighter")
 	}
-	// Load the first found comment in copyright.go
+	// Load the first comment found in copyright.go
 	cwd, _ := os.Getwd()
 	noticeToApply, ok, err := firstCommentInFile("copyright.go")
 	if err != nil {
@@ -121,7 +121,7 @@ func processDir(dirPath string, noticeToApply string) error {
 		}
 		ext := filepath.Ext(de.Name())
 		lang, ok := languages[ext]
-		if !ok || flagExcludeMap[ext] {
+		if !ok || flagExcludeMap[ext] || de.Name() == "copyright.go" {
 			continue
 		}
 		firstComment, ok, err := firstCommentInFile(filepath.Join(dirPath, de.Name()))

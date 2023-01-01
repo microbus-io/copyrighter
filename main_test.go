@@ -17,6 +17,8 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
+	"os"
 	"strings"
 	"testing"
 )
@@ -27,6 +29,7 @@ func Test_firstCommentInReader(t *testing.T) {
 		"/* Foo \nBar\n*/\n// Baz\nvar x", "Foo\nBar",
 		"/*\nFoo \nBar\n*/\n// Baz\nvar x", "Foo\nBar",
 		"\npackage something\n\n/*\nFoo \nBar\n*/\n// Baz\nvar x", "Foo\nBar",
+		"/* Foo\nBar   */\n", "Foo\nBar",
 		"// Foo", "Foo",
 		"// Foo\n// Bar", "Foo\nBar",
 		"// Foo\n// \tBar", "Foo\n\tBar",
@@ -46,5 +49,40 @@ func Test_firstCommentInReader(t *testing.T) {
 		if !ok && testCases[i+1] != "" {
 			t.FailNow()
 		}
+	}
+}
+
+func Test_firstCommentInFile(t *testing.T) {
+	_ = os.WriteFile("test.py", []byte(`
+# Foo
+#   Bar
+print("Hello, World!")
+`), 0666)
+	defer os.Remove("test.py")
+	comment, ok, err := firstCommentInFile("test.py")
+	if !ok || comment != "Foo\n  Bar" || err != nil {
+		t.FailNow()
+	}
+}
+
+func Test_processDir(t *testing.T) {
+	_ = os.WriteFile("test.py", []byte(`print("hello")`), 0666)
+	defer os.Remove("test.py")
+	_ = os.WriteFile("test.cs", []byte(`namespace HelloWorld{}`), 0666)
+	defer os.Remove("test.cs")
+
+	flagExcludeMap = map[string]bool{".go": true}
+	err := processDir(".", "Foo\nBar")
+	if err != nil {
+		t.FailNow()
+	}
+
+	f, err := os.ReadFile("test.py")
+	if err != nil || !bytes.Contains(f, []byte("# Foo\n# Bar\n")) {
+		t.FailNow()
+	}
+	f, err = os.ReadFile("test.cs")
+	if err != nil || !bytes.Contains(f, []byte("/*\nFoo\nBar\n*/")) {
+		t.FailNow()
 	}
 }
