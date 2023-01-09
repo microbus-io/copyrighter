@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Microbus Open Source Software and various contributors
+Copyright 2023 Microbus Open Source Software and various contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,21 +37,22 @@ type markers struct {
 
 // languages is a map of the markers used to denote comments in each language.
 var languages = map[string]markers{
-	".go":   {"//", "/*", "*/"},
-	".js":   {"//", "/*", "*/"},
-	".ts":   {"//", "/*", "*/"},
-	".cs":   {"//", "/*", "*/"},
-	".java": {"//", "/*", "*/"},
 	".c":    {"//", "/*", "*/"},
 	".cpp":  {"//", "/*", "*/"},
-	".php":  {"//", "/*", "*/"},
-	".py":   {"#", "", ""},
+	".cs":   {"//", "/*", "*/"},
 	".css":  {"", "/*", "*/"},
-	".xml":  {"", "<!--", "-->"},
+	".go":   {"//", "/*", "*/"},
 	".html": {"", "<!--", "-->"},
-	".yaml": {"#", "", ""},
+	".java": {"//", "/*", "*/"},
+	".js":   {"//", "/*", "*/"},
+	".php":  {"//", "/*", "*/"},
 	".ps1":  {"#", "<#", "#>"},
+	".py":   {"#", "", ""},
 	".sh":   {"#", "", ""},
+	".sql":  {"--", "/*", "*/"},
+	".ts":   {"//", "/*", "*/"},
+	".xml":  {"", "<!--", "-->"},
+	".yaml": {"#", "", ""},
 }
 
 var (

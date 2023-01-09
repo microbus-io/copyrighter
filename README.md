@@ -1,6 +1,6 @@
 # Copyrighter
 
-`Copyrighter` is a utility that adds a copyright notice to source files using Go's code-generator. By default, it adds the notice to the following languages (file extensions):
+`Copyrighter` is a utility that adds a copyright notice to source files using Go's code generator. Notices are added to the following languages (file extensions):
 
 * C (.c)
 * C++ (.cpp)
@@ -14,6 +14,7 @@
 * PowerShell (.ps1)
 * Python (.py)
 * Shell (.sh)
+* SQL (.sql)
 * TypeScript (.ts)
 * XML (.xml)
 * YAML (.yaml)
