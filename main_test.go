@@ -25,11 +25,11 @@ import (
 
 func Test_firstCommentInReader(t *testing.T) {
 	testCases := []string{
-		"/* Foo */\n// Bar\nvar x", "Foo",
-		"/* Foo \nBar\n*/\n// Baz\nvar x", "Foo\nBar",
+		"/* Foo */\n// Bar\nvar x", "Bar",
+		"/* Foo \nBar\n*/\n// Baz\nvar x", "Baz",
 		"/*\nFoo \nBar\n*/\n// Baz\nvar x", "Foo\nBar",
 		"\npackage something\n\n/*\nFoo \nBar\n*/\n// Baz\nvar x", "Foo\nBar",
-		"/* Foo\nBar   */\n", "Foo\nBar",
+		"/*\n Foo\nBar   \n*/\n", " Foo\nBar",
 		"// Foo", "Foo",
 		"// Foo\n// Bar", "Foo\nBar",
 		"// Foo\n// \tBar", "Foo\n\tBar",
@@ -42,11 +42,13 @@ func Test_firstCommentInReader(t *testing.T) {
 	}
 
 	for i := 0; i < len(testCases); i += 2 {
-		comment, ok, _ := firstCommentInReader(strings.NewReader(testCases[i]), markers{"//", "/*", "*/"})
+		comment, ok, _, _, _ := firstCommentInReader(strings.NewReader(testCases[i]), markers{"//", "/*", "*/"})
 		if ok && comment != testCases[i+1] {
+			t.Log(testCases[i])
 			t.FailNow()
 		}
 		if !ok && testCases[i+1] != "" {
+			t.Log(testCases[i])
 			t.FailNow()
 		}
 	}
@@ -59,8 +61,8 @@ func Test_firstCommentInFile(t *testing.T) {
 print("Hello, World!")
 `), 0666)
 	defer os.Remove("test.py")
-	comment, ok, err := firstCommentInFile("test.py")
-	if !ok || comment != "Foo\n  Bar" || err != nil {
+	comment, ok, firstLine, lastLine, err := firstCommentInFile("test.py")
+	if !ok || comment != "Foo\n  Bar" || err != nil || firstLine != 2 || lastLine != 3 {
 		t.FailNow()
 	}
 }

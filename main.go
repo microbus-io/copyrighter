@@ -19,7 +19,7 @@ package main
 
 import (
 	"bufio"
-	"errors"
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -71,7 +71,7 @@ func main() {
 	}
 }
 
-// mainErr scans the current directory for a copyright.go file and applies the first comment
+// mainErr scans the current directory for a copyright.go or doc.go file and applies the first comment
 // in that file to all other source files in the directory.
 func mainErr() error {
 	// Parse CLI flags
@@ -86,17 +86,22 @@ func mainErr() error {
 	if flagVerbose {
 		fmt.Println("Copyrighter")
 	}
-	// Load the first comment found in copyright.go
+	// Load the first comment found in copyright.go or doc.go
 	cwd, _ := os.Getwd()
-	noticeToApply, ok, err := firstCommentInFile("copyright.go")
+	noticeOriginFile := "copyright.go"
+	notice, ok, _, _, err := firstCommentInFile(noticeOriginFile)
 	if err != nil {
-		return fmt.Errorf("unable to read '%s': %w", filepath.Join(cwd, "copyright.go"), err)
+		noticeOriginFile = "doc.go"
+		notice, ok, _, _, err = firstCommentInFile(noticeOriginFile)
+	}
+	if err != nil {
+		return fmt.Errorf("unable to read '%s': %w", filepath.Join(cwd, noticeOriginFile), err)
 	}
 	if !ok {
-		return errors.New("no comment found in copyright.go")
+		return fmt.Errorf("no comment found in '%s'", filepath.Join(cwd, noticeOriginFile))
 	}
 	// Apply the comment to the files in the current directory
-	err = processDir(".", noticeToApply)
+	err = processDir(".", notice)
 	if err != nil {
 		return err
 	}
@@ -104,7 +109,7 @@ func mainErr() error {
 }
 
 // processDir applies the copyright notice to the source files in the indicated directory.
-func processDir(dirPath string, noticeToApply string) error {
+func processDir(dirPath string, notice string) error {
 	cwd, _ := os.Getwd()
 	dirEntries, err := os.ReadDir(dirPath)
 	if err != nil {
@@ -113,7 +118,7 @@ func processDir(dirPath string, noticeToApply string) error {
 	for _, de := range dirEntries {
 		if de.IsDir() {
 			if flagRecurse {
-				err = processDir(filepath.Join(dirPath, de.Name()), noticeToApply)
+				err = processDir(filepath.Join(dirPath, de.Name()), notice)
 				if err != nil {
 					return err
 				}
@@ -122,15 +127,18 @@ func processDir(dirPath string, noticeToApply string) error {
 		}
 		ext := filepath.Ext(de.Name())
 		lang, ok := languages[ext]
-		if !ok || flagExcludeMap[ext] || de.Name() == "copyright.go" {
+		if !ok || flagExcludeMap[ext] {
 			continue
 		}
-		firstComment, ok, err := firstCommentInFile(filepath.Join(dirPath, de.Name()))
+		firstComment, ok, firstLine, lastLine, err := firstCommentInFile(filepath.Join(dirPath, de.Name()))
 		if err != nil {
 			return err
 		}
-		if ok && firstComment == noticeToApply {
+		if ok && firstComment == notice {
 			continue
+		}
+		if ok && !strings.Contains(strings.ToLower(firstComment), "copyright") {
+			ok = false
 		}
 		source, err := os.ReadFile(filepath.Join(dirPath, de.Name()))
 		if err != nil {
@@ -142,16 +150,25 @@ func processDir(dirPath string, noticeToApply string) error {
 		}
 		err = func() error {
 			defer f.Close()
+			var lines [][]byte
+			if ok {
+				lines = bytes.Split(source, []byte("\n"))
+				for i := 0; i < firstLine; i++ {
+					f.Write(lines[i])
+					f.WriteString("\n")
+				}
+			}
+
 			if lang.multiBegin != "" {
 				_, err := f.WriteString(lang.multiBegin + "\n" +
-					noticeToApply + "\n" +
+					notice + "\n" +
 					lang.multiEnd + "\n")
 				if err != nil {
 					return err
 				}
 			} else {
 				_, err := f.WriteString(lang.single + " " +
-					strings.Join(strings.Split(noticeToApply, "\n"), "\n"+lang.single+" ") + "\n",
+					strings.Join(strings.Split(notice, "\n"), "\n"+lang.single+" ") + "\n",
 				)
 				if err != nil {
 					return err
@@ -163,9 +180,17 @@ func processDir(dirPath string, noticeToApply string) error {
 					return err
 				}
 			}
-			_, err = f.Write(source)
-			if err != nil {
-				return err
+
+			if ok {
+				for i := lastLine + 1; i < len(lines); i++ {
+					f.Write(lines[i])
+					f.WriteString("\n")
+				}
+			} else {
+				_, err = f.Write(source)
+				if err != nil {
+					return err
+				}
 			}
 			return nil
 		}()
@@ -180,44 +205,38 @@ func processDir(dirPath string, noticeToApply string) error {
 }
 
 // firstCommentInFile returns the first comment it finds in the first 1024 lines in a file.
-func firstCommentInFile(filename string) (comment string, ok bool, err error) {
+func firstCommentInFile(filename string) (comment string, ok bool, firstLine int, lastLine int, err error) {
 	ext := filepath.Ext(filename)
 	lang, ok := languages[ext]
 	if !ok {
-		return "", false, nil
+		return "", false, 0, 0, nil
 	}
 	file, err := os.Open(filename)
 	if err != nil {
 		cwd, _ := os.Getwd()
-		return "", false, fmt.Errorf("failed to open '%s': %w", filepath.Join(cwd, filename), err)
+		return "", false, 0, 0, fmt.Errorf("failed to open '%s': %w", filepath.Join(cwd, filename), err)
 	}
 	defer file.Close()
 	return firstCommentInReader(file, lang)
 }
 
 // firstCommentInReader returns the first comment it finds in the first 1024 lines in a reader.
-func firstCommentInReader(r io.Reader, lang markers) (comment string, ok bool, err error) {
+func firstCommentInReader(r io.Reader, lang markers) (comment string, ok bool, firstLine int, lastLine int, err error) {
 	var aggregated strings.Builder
-	var inMulti, inSingle, exit bool
-	var lineNum int
+	var inMulti, inSingle bool
 	scanner := bufio.NewScanner(r)
-	for !exit && lineNum < 1024 && scanner.Scan() {
-		lineNum++
+out:
+	for lineNum := 0; lineNum < 1024 && scanner.Scan(); lineNum++ {
 		line := scanner.Text()
 		trimmedLine := strings.TrimSpace(line)
 		switch {
 		case !inSingle && !inMulti:
-			if lang.multiBegin != "" && strings.HasPrefix(trimmedLine, lang.multiBegin) {
+			if lang.multiBegin != "" && trimmedLine == lang.multiBegin {
 				inMulti = true
-				p := strings.LastIndex(trimmedLine, lang.multiEnd)
-				if p > 0 {
-					aggregated.WriteString(strings.TrimSpace(trimmedLine[len(lang.multiBegin):p]))
-					exit = true
-				} else {
-					aggregated.WriteString(strings.TrimSpace(trimmedLine[len(lang.multiBegin):]))
-				}
+				firstLine = lineNum
 			} else if lang.single != "" && strings.HasPrefix(trimmedLine, lang.single) {
 				inSingle = true
+				firstLine = lineNum
 				aggregated.WriteString(strings.TrimPrefix(trimmedLine[len(lang.single):], " "))
 			}
 		case inSingle:
@@ -227,17 +246,13 @@ func firstCommentInReader(r io.Reader, lang markers) (comment string, ok bool, e
 				}
 				aggregated.WriteString(strings.TrimPrefix(trimmedLine[len(lang.single):], " "))
 			} else {
-				exit = true
+				lastLine = lineNum - 1
+				break out
 			}
 		case inMulti:
-			if strings.HasSuffix(trimmedLine, lang.multiEnd) {
-				p := strings.LastIndex(line, lang.multiEnd)
-				toAdd := strings.TrimRight(line[:p], " ")
-				if toAdd != "" {
-					aggregated.WriteString("\n")
-					aggregated.WriteString(toAdd)
-				}
-				exit = true
+			if trimmedLine == lang.multiEnd {
+				lastLine = lineNum
+				break out
 			} else {
 				if aggregated.Len() > 0 {
 					aggregated.WriteString("\n")
@@ -246,5 +261,5 @@ func firstCommentInReader(r io.Reader, lang markers) (comment string, ok bool, e
 			}
 		}
 	}
-	return aggregated.String(), inMulti || inSingle, nil
+	return aggregated.String(), inMulti || inSingle, firstLine, lastLine, nil
 }
