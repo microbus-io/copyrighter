@@ -19,11 +19,42 @@ package main
 import (
 	"bytes"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
+
+func assertTrue(t *testing.T, b bool) bool {
+	if !b {
+		t.Fail()
+		return false
+	}
+	return true
+}
+
+func assertFalse(t *testing.T, b bool) bool {
+	if b {
+		t.Fail()
+		return false
+	}
+	return true
+}
+
+func assertEqual(t *testing.T, expected any, actual any) bool {
+	if !reflect.DeepEqual(expected, actual) {
+		t.Fail()
+		return false
+	}
+	return true
+}
+
+func assertNoError(t *testing.T, err error) bool {
+	if err != nil {
+		t.Fail()
+		return false
+	}
+	return true
+}
 
 func Test_FirstComment(t *testing.T) {
 	source := `
@@ -34,10 +65,10 @@ Right
 package x
 `
 	comment, ok, from, to := firstComment(source, languages[".go"])
-	if assert.True(t, ok) {
-		assert.Equal(t, "Right", comment)
-		assert.Equal(t, from, 1)
-		assert.Equal(t, to, 4)
+	if assertTrue(t, ok) {
+		assertEqual(t, "Right", comment)
+		assertEqual(t, from, 1)
+		assertEqual(t, to, 4)
 	}
 
 	source = `
@@ -49,10 +80,10 @@ Right
 var x
 `
 	comment, ok, from, to = firstComment(source, languages[".go"])
-	if assert.True(t, ok) {
-		assert.Equal(t, "Right", comment)
-		assert.Equal(t, from, 2)
-		assert.Equal(t, to, 5)
+	if assertTrue(t, ok) {
+		assertEqual(t, "Right", comment)
+		assertEqual(t, from, 2)
+		assertEqual(t, to, 5)
 	}
 
 	source = `/*
@@ -60,10 +91,10 @@ Right
  Right
 */`
 	comment, ok, from, to = firstComment(source, languages[".go"])
-	if assert.True(t, ok) {
-		assert.Equal(t, "Right\n Right", comment)
-		assert.Equal(t, from, 0)
-		assert.Equal(t, to, 4)
+	if assertTrue(t, ok) {
+		assertEqual(t, "Right\n Right", comment)
+		assertEqual(t, from, 0)
+		assertEqual(t, to, 4)
 	}
 
 	source = `/* Wrong */
@@ -71,10 +102,10 @@ Right
 package example
 	`
 	comment, ok, from, to = firstComment(source, languages[".go"])
-	if assert.True(t, ok) {
-		assert.Equal(t, "Right", comment)
-		assert.Equal(t, from, 1)
-		assert.Equal(t, to, 2)
+	if assertTrue(t, ok) {
+		assertEqual(t, "Right", comment)
+		assertEqual(t, from, 1)
+		assertEqual(t, to, 2)
 	}
 
 	source = `// Right
@@ -82,20 +113,20 @@ package example
 package example
 	`
 	comment, ok, from, to = firstComment(source, languages[".go"])
-	if assert.True(t, ok) {
-		assert.Equal(t, "Right\nRight", comment)
-		assert.Equal(t, from, 0)
-		assert.Equal(t, to, 2)
+	if assertTrue(t, ok) {
+		assertEqual(t, "Right\nRight", comment)
+		assertEqual(t, from, 0)
+		assertEqual(t, to, 2)
 	}
 
 	source = `
 // Right
 // Right`
 	comment, ok, from, to = firstComment(source, languages[".go"])
-	if assert.True(t, ok) {
-		assert.Equal(t, "Right\nRight", comment)
-		assert.Equal(t, from, 1)
-		assert.Equal(t, to, 3)
+	if assertTrue(t, ok) {
+		assertEqual(t, "Right\nRight", comment)
+		assertEqual(t, from, 1)
+		assertEqual(t, to, 3)
 	}
 
 	source = `
@@ -103,10 +134,10 @@ package example
 //  Right
 	`
 	comment, ok, from, to = firstComment(source, languages[".go"])
-	if assert.True(t, ok) {
-		assert.Equal(t, "Right\n Right", comment)
-		assert.Equal(t, from, 1)
-		assert.Equal(t, to, 3)
+	if assertTrue(t, ok) {
+		assertEqual(t, "Right\n Right", comment)
+		assertEqual(t, from, 1)
+		assertEqual(t, to, 3)
 	}
 
 	source = `
@@ -117,39 +148,39 @@ Wrong
 // Wrong
 	`
 	comment, ok, from, to = firstComment(source, languages[".go"])
-	if assert.True(t, ok) {
-		assert.Equal(t, "Right", comment)
-		assert.Equal(t, from, 1)
-		assert.Equal(t, to, 2)
+	if assertTrue(t, ok) {
+		assertEqual(t, "Right", comment)
+		assertEqual(t, from, 1)
+		assertEqual(t, to, 2)
 	}
 
 	source = `
 package example
 	`
 	comment, ok, from, to = firstComment(source, languages[".go"])
-	if assert.False(t, ok) {
-		assert.Equal(t, "", comment)
-		assert.Equal(t, from, 0)
-		assert.Equal(t, to, 0)
+	if assertFalse(t, ok) {
+		assertEqual(t, "", comment)
+		assertEqual(t, from, 0)
+		assertEqual(t, to, 0)
 	}
 
 	source = `/*
 package example
 	`
 	comment, ok, from, to = firstComment(source, languages[".go"])
-	if assert.False(t, ok) {
-		assert.Equal(t, "", comment)
-		assert.Equal(t, from, 0)
-		assert.Equal(t, to, 0)
+	if assertFalse(t, ok) {
+		assertEqual(t, "", comment)
+		assertEqual(t, from, 0)
+		assertEqual(t, to, 0)
 	}
 
 	source = `package example // Wrong
 	`
 	comment, ok, from, to = firstComment(source, languages[".go"])
-	if assert.False(t, ok) {
-		assert.Equal(t, "", comment)
-		assert.Equal(t, from, 0)
-		assert.Equal(t, to, 0)
+	if assertFalse(t, ok) {
+		assertEqual(t, "", comment)
+		assertEqual(t, from, 0)
+		assertEqual(t, to, 0)
 	}
 }
 
@@ -164,15 +195,15 @@ func Test_Main(t *testing.T) {
 	flagExclude = "go"
 	flagRecurse = true
 	err := mainErr()
-	assert.NoError(t, err)
+	assertNoError(t, err)
 
 	f, err := os.ReadFile("test.py")
-	if assert.NoError(t, err) {
-		assert.True(t, bytes.Contains(f, []byte("# Copyright")))
+	if assertNoError(t, err) {
+		assertTrue(t, bytes.Contains(f, []byte("# Copyright")))
 	}
 	f, err = os.ReadFile("testdir/test.cs")
-	if assert.NoError(t, err) {
-		assert.True(t, bytes.Contains(f, []byte("/*\nCopyright")))
+	if assertNoError(t, err) {
+		assertTrue(t, bytes.Contains(f, []byte("/*\nCopyright")))
 	}
 }
 
@@ -184,7 +215,7 @@ var x
 `
 	var sb strings.Builder
 	ok, err := process(strings.NewReader(source), &sb, languages[".go"], "Copyright notice")
-	if assert.True(t, ok) && assert.NoError(t, err) {
+	if assertTrue(t, ok) && assertNoError(t, err) {
 		result := `/*
 Copyright notice
 */
@@ -194,7 +225,7 @@ package example
 
 var x
 `
-		assert.Equal(t, result, sb.String())
+		assertEqual(t, result, sb.String())
 	}
 }
 
@@ -206,7 +237,7 @@ var x
 `
 	var sb strings.Builder
 	ok, err := process(strings.NewReader(source), &sb, languages[".go"], "Copyright notice")
-	if assert.True(t, ok) && assert.NoError(t, err) {
+	if assertTrue(t, ok) && assertNoError(t, err) {
 		result := `/*
 Copyright notice
 */
@@ -214,7 +245,7 @@ package example
 
 var x
 `
-		assert.Equal(t, result, sb.String())
+		assertEqual(t, result, sb.String())
 	}
 }
 
@@ -227,14 +258,14 @@ var x
 `
 	var sb strings.Builder
 	ok, err := process(strings.NewReader(source), &sb, languages[".go"], "Copyright notice")
-	if assert.True(t, ok) && assert.NoError(t, err) {
+	if assertTrue(t, ok) && assertNoError(t, err) {
 		result := `package example
 /*
 Copyright notice
 */
 var x
 `
-		assert.Equal(t, result, sb.String())
+		assertEqual(t, result, sb.String())
 	}
 }
 
@@ -242,12 +273,12 @@ func Test_Empty(t *testing.T) {
 	source := ``
 	var sb strings.Builder
 	ok, err := process(strings.NewReader(source), &sb, languages[".go"], "Copyright notice")
-	if assert.True(t, ok) && assert.NoError(t, err) {
+	if assertTrue(t, ok) && assertNoError(t, err) {
 		result := `/*
 Copyright notice
 */
 `
-		assert.Equal(t, result, sb.String())
+		assertEqual(t, result, sb.String())
 	}
 }
 
@@ -257,7 +288,7 @@ func Test_CarriageReturn(t *testing.T) {
 		"var x\r\n"
 	var sb strings.Builder
 	ok, err := process(strings.NewReader(source), &sb, languages[".go"], "Copyright\nnotice")
-	if assert.True(t, ok) && assert.NoError(t, err) {
+	if assertTrue(t, ok) && assertNoError(t, err) {
 		result := "/*\r\n" +
 			"Copyright\r\nnotice\r\n" +
 			"*/\r\n" +
@@ -265,6 +296,6 @@ func Test_CarriageReturn(t *testing.T) {
 			"package example\r\n" +
 			"\r\n" +
 			"var x\r\n"
-		assert.Equal(t, result, sb.String())
+		assertEqual(t, result, sb.String())
 	}
 }
