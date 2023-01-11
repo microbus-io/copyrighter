@@ -63,6 +63,12 @@ var (
 
 // main runs a code generator that injects a copyright notice to source files.
 func main() {
+	// Parse CLI flags
+	flag.BoolVar(&flagRecurse, "r", false, "Recurse sub-directories")
+	flag.BoolVar(&flagVerbose, "v", false, "Verbose")
+	flag.StringVar(&flagExclude, "x", "", "Comma-separated list of extensions to exclude")
+	flag.Parse()
+
 	err := mainErr()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%+v\n", err)
@@ -73,11 +79,6 @@ func main() {
 // mainErr scans the current directory for a copyright.go or doc.go file and applies the first comment
 // in that file to all other source files in the directory.
 func mainErr() error {
-	// Parse CLI flags
-	flag.BoolVar(&flagRecurse, "r", false, "Recurse sub-directories")
-	flag.BoolVar(&flagVerbose, "v", false, "Verbose")
-	flag.StringVar(&flagExclude, "x", "", "Comma-separated list of extensions to exclude")
-	flag.Parse()
 	flagExcludeMap = map[string]bool{}
 	for _, x := range strings.Split(flagExclude, ",") {
 		flagExcludeMap["."+strings.TrimPrefix(x, ".")] = true

@@ -58,8 +58,7 @@ var x
 	source = `/*
 Right
  Right
-*/
-`
+*/`
 	comment, ok, from, to = firstComment(source, languages[".go"])
 	if assert.True(t, ok) {
 		assert.Equal(t, "Right\n Right", comment)
@@ -91,8 +90,7 @@ package example
 
 	source = `
 // Right
-// Right
-	`
+// Right`
 	comment, ok, from, to = firstComment(source, languages[".go"])
 	if assert.True(t, ok) {
 		assert.Equal(t, "Right\nRight", comment)
@@ -155,25 +153,26 @@ package example
 	}
 }
 
-func Test_ProcessDir(t *testing.T) {
+func Test_Main(t *testing.T) {
 	_ = os.WriteFile("test.py", []byte(`print("hello")`), 0666)
 	defer os.Remove("test.py")
-	_ = os.WriteFile("test.cs", []byte(`namespace HelloWorld{}`), 0666)
-	defer os.Remove("test.cs")
+	_ = os.Mkdir("testdir", os.ModePerm)
+	defer os.RemoveAll("testdir")
+	_ = os.WriteFile("testdir/test.cs", []byte(`namespace HelloWorld{}`), 0666)
+	defer os.Remove("testdir/test.cs")
 
-	flagExcludeMap = map[string]bool{".go": true}
-	err := processDir(".", "Foo\nBar")
-	if !assert.NoError(t, err) {
-		return
-	}
+	flagExclude = "go"
+	flagRecurse = true
+	err := mainErr()
+	assert.NoError(t, err)
 
 	f, err := os.ReadFile("test.py")
 	if assert.NoError(t, err) {
-		assert.True(t, bytes.Contains(f, []byte("# Foo\n# Bar\n")))
+		assert.True(t, bytes.Contains(f, []byte("# Copyright")))
 	}
-	f, err = os.ReadFile("test.cs")
+	f, err = os.ReadFile("testdir/test.cs")
 	if assert.NoError(t, err) {
-		assert.True(t, bytes.Contains(f, []byte("/*\nFoo\nBar\n*/")))
+		assert.True(t, bytes.Contains(f, []byte("/*\nCopyright")))
 	}
 }
 
