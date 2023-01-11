@@ -33,7 +33,7 @@ Copyright 2023 You
 package yourpackage
 ```
 
-To be recognized, the comment must be surrounded by `/*` and `*/` on separate lines with nothing else added to those lines; or alternatively, each line of the comment must start with `//`.
+The first comment surrounded by `/*` and `*/` (on separate lines with nothing else added to those lines), or one where each line starts with `//`, will be recognized at the copyright notice.
 
 ```go
 /*
@@ -45,11 +45,11 @@ Good
 
 /* Bad */
 
-var x /*
+var example /*
 Bad
 */
 
-var x // Bad
+var example // Bad
 ```
 
 The following flags may be added to the `go:generate` directive:

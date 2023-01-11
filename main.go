@@ -18,7 +18,6 @@ limitations under the License.
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -28,15 +27,15 @@ import (
 	"strings"
 )
 
-// markers are the comment markers for a language.
-type markers struct {
+// CommentMarkers are the comment CommentMarkers for a language.
+type CommentMarkers struct {
 	single     string
 	multiBegin string
 	multiEnd   string
 }
 
 // languages is a map of the markers used to denote comments in each language.
-var languages = map[string]markers{
+var languages = map[string]CommentMarkers{
 	".c":    {"//", "/*", "*/"},
 	".cpp":  {"//", "/*", "*/"},
 	".cs":   {"//", "/*", "*/"},
@@ -87,18 +86,17 @@ func mainErr() error {
 		fmt.Println("Copyrighter")
 	}
 	// Load the first comment found in copyright.go or doc.go
-	cwd, _ := os.Getwd()
-	noticeOriginFile := "copyright.go"
-	notice, ok, _, _, err := firstCommentInFile(noticeOriginFile)
+	b, err := os.ReadFile("copyright.go")
 	if err != nil {
-		noticeOriginFile = "doc.go"
-		notice, ok, _, _, err = firstCommentInFile(noticeOriginFile)
+		b, err = os.ReadFile("doc.go")
 	}
 	if err != nil {
-		return fmt.Errorf("unable to read '%s': %w", filepath.Join(cwd, noticeOriginFile), err)
+		return fmt.Errorf("unable to read copyright.go or doc.go: %w", err)
 	}
+	source := string(b)
+	notice, ok, _, _ := firstComment(source, languages[".go"])
 	if !ok {
-		return fmt.Errorf("no comment found in '%s'", filepath.Join(cwd, noticeOriginFile))
+		return fmt.Errorf("no comment found in copyright.go or doc.go")
 	}
 	// Apply the comment to the files in the current directory
 	err = processDir(".", notice)
@@ -110,10 +108,9 @@ func mainErr() error {
 
 // processDir applies the copyright notice to the source files in the indicated directory.
 func processDir(dirPath string, notice string) error {
-	cwd, _ := os.Getwd()
 	dirEntries, err := os.ReadDir(dirPath)
 	if err != nil {
-		return fmt.Errorf("unable to read files in '%s': %w", filepath.Join(cwd, dirPath), err)
+		return fmt.Errorf("unable to read files in '%s': %w", dirPath, err)
 	}
 	for _, de := range dirEntries {
 		if de.IsDir() {
@@ -130,136 +127,125 @@ func processDir(dirPath string, notice string) error {
 		if !ok || flagExcludeMap[ext] {
 			continue
 		}
-		firstComment, ok, firstLine, lastLine, err := firstCommentInFile(filepath.Join(dirPath, de.Name()))
+
+		fileName := filepath.Join(dirPath, de.Name())
+		source, err := os.ReadFile(fileName)
 		if err != nil {
 			return err
 		}
-		if ok && firstComment == notice {
-			continue
+		var toWrite bytes.Buffer
+		ok, err = process(bytes.NewReader(source), &toWrite, lang, notice)
+		if ok {
+			err = os.WriteFile(fileName, toWrite.Bytes(), 0666)
 		}
-		if ok && !strings.Contains(strings.ToLower(firstComment), "copyright") {
-			ok = false
-		}
-		source, err := os.ReadFile(filepath.Join(dirPath, de.Name()))
 		if err != nil {
-			return fmt.Errorf("unable to read '%s': %w", filepath.Join(cwd, dirPath, de.Name()), err)
-		}
-		f, err := os.Create(filepath.Join(dirPath, de.Name()))
-		if err != nil {
-			return fmt.Errorf("unable to create '%s': %w", filepath.Join(cwd, dirPath, de.Name()), err)
-		}
-		err = func() error {
-			defer f.Close()
-			var lines [][]byte
-			if ok {
-				lines = bytes.Split(source, []byte("\n"))
-				for i := 0; i < firstLine; i++ {
-					f.Write(lines[i])
-					f.WriteString("\n")
-				}
-			}
-
-			if lang.multiBegin != "" {
-				_, err := f.WriteString(lang.multiBegin + "\n" +
-					notice + "\n" +
-					lang.multiEnd + "\n")
-				if err != nil {
-					return err
-				}
-			} else {
-				_, err := f.WriteString(lang.single + " " +
-					strings.Join(strings.Split(notice, "\n"), "\n"+lang.single+" ") + "\n",
-				)
-				if err != nil {
-					return err
-				}
-			}
-			if len(source) > 0 && source[0] != '\n' {
-				_, err := f.WriteString("\n")
-				if err != nil {
-					return err
-				}
-			}
-
-			if ok {
-				for i := lastLine + 1; i < len(lines); i++ {
-					f.Write(lines[i])
-					f.WriteString("\n")
-				}
-			} else {
-				_, err = f.Write(source)
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		}()
-		if err != nil {
-			return fmt.Errorf("failed to overwrite '%s': %w", filepath.Join(cwd, dirPath, de.Name()), err)
+			return fmt.Errorf("failed to process '%s': %w", fileName, err)
 		}
 		if flagVerbose {
-			fmt.Println("  " + filepath.Join(cwd, dirPath, de.Name()))
+			fmt.Println("  " + fileName)
 		}
 	}
 	return nil
 }
 
-// firstCommentInFile returns the first comment it finds in the first 1024 lines in a file.
-func firstCommentInFile(filename string) (comment string, ok bool, firstLine int, lastLine int, err error) {
-	ext := filepath.Ext(filename)
-	lang, ok := languages[ext]
-	if !ok {
-		return "", false, 0, 0, nil
-	}
-	file, err := os.Open(filename)
+// process reads the source code from the reader, inserts the copyright notice if appropriate,
+// and writes the results to the writer.
+func process(r io.Reader, f io.Writer, lang CommentMarkers, notice string) (ok bool, err error) {
+	b, err := io.ReadAll(r)
 	if err != nil {
-		cwd, _ := os.Getwd()
-		return "", false, 0, 0, fmt.Errorf("failed to open '%s': %w", filepath.Join(cwd, filename), err)
+		return false, err
 	}
-	defer file.Close()
-	return firstCommentInReader(file, lang)
+	source := string(b)
+	firstComment, ok, fromLine, toLine := firstComment(source, lang)
+	if ok && firstComment == notice {
+		return false, nil
+	}
+	if ok && !strings.Contains(strings.ToLower(firstComment), "copyright") {
+		ok = false
+		fromLine = 0
+		toLine = 0
+	}
+
+	lineSep := "\n"
+	if strings.Contains(source, "\r\n") {
+		lineSep = "\r\n"
+	}
+
+	// Insert lines before the copyright notice to be replaced
+	lines := strings.Split(source, "\n")
+	for i := 0; i < fromLine; i++ {
+		f.Write([]byte(lines[i]))
+		if i < len(lines)-1 {
+			f.Write([]byte("\n"))
+		}
+	}
+	// Insert the copyright notice
+	var newComment string
+	if lineSep != "\n" {
+		notice = strings.ReplaceAll(notice, "\n", lineSep)
+	}
+	if lang.multiBegin != "" {
+		newComment = lang.multiBegin + lineSep + notice + lineSep + lang.multiEnd + lineSep
+	} else {
+		newComment = lang.single + " " +
+			strings.Join(strings.Split(notice, "\n"), lineSep+lang.single+" ") + lineSep
+	}
+	_, err = f.Write([]byte(newComment))
+	if err != nil {
+		return false, err
+	}
+	if fromLine == 0 && toLine == 0 && len(lines) > 0 && lines[0] != "" {
+		f.Write([]byte(lineSep))
+	}
+	// Insert lines after the copyright notice to be replaced
+	for i := toLine; i < len(lines); i++ {
+		f.Write([]byte(lines[i]))
+		if i < len(lines)-1 {
+			f.Write([]byte("\n"))
+		}
+	}
+	return true, nil
 }
 
-// firstCommentInReader returns the first comment it finds in the first 1024 lines in a reader.
-func firstCommentInReader(r io.Reader, lang markers) (comment string, ok bool, firstLine int, lastLine int, err error) {
-	var aggregated strings.Builder
+// firstComment returns the first multi-line comment it finds.
+func firstComment(source string, lang CommentMarkers) (comment string, ok bool, fromLine int, toLine int) {
+	lines := strings.Split(source, "\n")
 	var inMulti, inSingle bool
-	scanner := bufio.NewScanner(r)
-out:
-	for lineNum := 0; lineNum < 1024 && scanner.Scan(); lineNum++ {
-		line := scanner.Text()
+	for l := 0; l < len(lines); l++ {
+		line := lines[l]
 		trimmedLine := strings.TrimSpace(line)
 		switch {
 		case !inSingle && !inMulti:
 			if lang.multiBegin != "" && trimmedLine == lang.multiBegin {
 				inMulti = true
-				firstLine = lineNum
+				fromLine = l
 			} else if lang.single != "" && strings.HasPrefix(trimmedLine, lang.single) {
 				inSingle = true
-				firstLine = lineNum
-				aggregated.WriteString(strings.TrimPrefix(trimmedLine[len(lang.single):], " "))
+				fromLine = l
 			}
 		case inSingle:
-			if strings.HasPrefix(trimmedLine, lang.single) {
-				if aggregated.Len() > 0 {
-					aggregated.WriteString("\n")
+			if !strings.HasPrefix(trimmedLine, lang.single) {
+				toLine = l
+				for i := fromLine; i < toLine; i++ {
+					lines[i] = strings.TrimPrefix(lines[i], lang.single)
+					lines[i] = strings.TrimPrefix(lines[i], " ")
 				}
-				aggregated.WriteString(strings.TrimPrefix(trimmedLine[len(lang.single):], " "))
-			} else {
-				lastLine = lineNum - 1
-				break out
+				return strings.Join(lines[fromLine:toLine], "\n"), true, fromLine, toLine
+			}
+			if l == len(lines)-1 {
+				toLine = len(lines)
+				for i := fromLine; i < toLine; i++ {
+					lines[i] = strings.TrimPrefix(lines[i], lang.single)
+					lines[i] = strings.TrimPrefix(lines[i], " ")
+				}
+				return strings.Join(lines[fromLine:toLine], "\n"), true, fromLine, toLine
 			}
 		case inMulti:
 			if trimmedLine == lang.multiEnd {
-				lastLine = lineNum
-				break out
-			} else {
-				if aggregated.Len() > 0 {
-					aggregated.WriteString("\n")
-				}
-				aggregated.WriteString(strings.TrimRight(line, " "))
+				toLine = l + 1
+				return strings.Join(lines[fromLine+1:toLine-1], "\n"), true, fromLine, toLine
 			}
 		}
 	}
-	return aggregated.String(), inMulti || inSingle, firstLine, lastLine, nil
+	return "", false, fromLine, toLine
 }
