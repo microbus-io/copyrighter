@@ -33,7 +33,7 @@ Copyright 2023 You
 package yourpackage
 ```
 
-The first comment surrounded by `/*` and `*/` (on separate lines with nothing else added to those lines), or one where each line starts with `//`, will be recognized at the copyright notice.
+The first comment surrounded by `/*` and `*/` (on separate lines with nothing else added to those lines) or one where each line starts with `//` will be recognized as the copyright notice.
 
 ```go
 /*
