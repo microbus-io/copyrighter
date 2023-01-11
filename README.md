@@ -21,12 +21,11 @@
 
 To install, `go get github.com/microbus-io/copyrighter`.
 
-Create a `copyright.go` file in each source code directory to be processed.
-Enter a comment with the copyright or license notice followed by the `go generate` directive.
+Create a `copyright.go` or `doc.go` file in each source code directory to be processed. Enter a comment with the copyright or license notice at the top of the file, followed by the `go generate` directive.
 
 ```go
 /*
-Copyright 2022 You
+Copyright 2023 You
 */
 
 //go:generate go run github.com/microbus-io/copyrighter
@@ -34,7 +33,26 @@ Copyright 2022 You
 package yourpackage
 ```
 
-The following flags may be added to the directive:
+The first comment surrounded by `/*` and `*/` (on separate lines with nothing else added to those lines), or one where each line starts with `//`, will be recognized at the copyright notice.
+
+```go
+/*
+Good
+*/
+
+// Good
+// Good
+
+/* Bad */
+
+var example /*
+Bad
+*/
+
+var example // Bad
+```
+
+The following flags may be added to the `go:generate` directive:
 
 * `-r` to recurse sub-directories
 * `-v` for verbose output
