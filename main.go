@@ -117,6 +117,10 @@ func processDir(dirPath string, notice string) error {
 		return fmt.Errorf("unable to read files in '%s': %w", dirPath, err)
 	}
 	for _, de := range dirEntries {
+		if strings.HasPrefix(de.Name(), ".") {
+			// Ignore hidden files
+			continue
+		}
 		if de.IsDir() {
 			if flagRecurse {
 				err = processDir(filepath.Join(dirPath, de.Name()), notice)
