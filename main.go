@@ -109,6 +109,9 @@ func mainErr() error {
 
 // processDir applies the copyright notice to the source files in the indicated directory.
 func processDir(dirPath string, notice string) error {
+	if flagVerbose {
+		fmt.Println(dirPath)
+	}
 	dirEntries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return fmt.Errorf("unable to read files in '%s': %w", dirPath, err)
@@ -137,13 +140,13 @@ func processDir(dirPath string, notice string) error {
 		var toWrite bytes.Buffer
 		ok, err = process(bytes.NewReader(source), &toWrite, lang, notice)
 		if ok {
+			if flagVerbose {
+				fmt.Println("  " + fileName)
+			}
 			err = os.WriteFile(fileName, toWrite.Bytes(), 0666)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to process '%s': %w", fileName, err)
-		}
-		if flagVerbose {
-			fmt.Println("  " + fileName)
 		}
 	}
 	return nil
