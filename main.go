@@ -48,7 +48,7 @@ var languages = map[string]CommentMarkers{
 	".ps1":  {"#", "<#", "#>"},
 	".py":   {"#", "", ""},
 	".sh":   {"#", "", ""},
-	".sql":  {"--", "/*", "*/"},
+	".sql":  {"--", "", ""},
 	".ts":   {"//", "/*", "*/"},
 	".xml":  {"", "<!--", "-->"},
 	".yaml": {"#", "", ""},
@@ -82,9 +82,6 @@ func mainErr() error {
 	flagExcludeMap = map[string]bool{}
 	for _, x := range strings.Split(flagExclude, ",") {
 		flagExcludeMap["."+strings.TrimPrefix(x, ".")] = true
-	}
-	if flagVerbose {
-		fmt.Println("Copyrighter")
 	}
 	// Load the first comment found in copyright.go or doc.go
 	b, err := os.ReadFile("copyright.go")

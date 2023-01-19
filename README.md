@@ -60,4 +60,4 @@ The following flags may be added to the `go:generate` directive:
 * `-v` for verbose output
 * `-x yaml,html,etc` to exclude files by extension
 
-`Copyrighter` is released under the Apache 2 license.
+`Copyrighter` is released under the [Apache 2.0 license](http://www.apache.org/licenses/LICENSE-2.0).
