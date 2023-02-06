@@ -109,6 +109,19 @@ func processDir(dirPath string, notice string) error {
 	if flagVerbose {
 		fmt.Println(dirPath)
 	}
+	// Skip subdirectories that contain their own copyright
+	if dirPath != "." {
+		b, err := os.ReadFile("copyright.go")
+		if err != nil {
+			b, err = os.ReadFile("doc.go")
+		}
+		if err == nil && bytes.Contains(b, []byte("go:generate go run github.com/microbus-io/copyrighter")) {
+			if flagVerbose {
+				fmt.Println("  skipped")
+			}
+			return nil
+		}
+	}
 	dirEntries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return fmt.Errorf("unable to read files in '%s': %w", dirPath, err)
