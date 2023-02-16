@@ -111,9 +111,9 @@ func processDir(dirPath string, notice string) error {
 	}
 	// Skip subdirectories that contain their own copyright
 	if dirPath != "." {
-		b, err := os.ReadFile("copyright.go")
+		b, err := os.ReadFile(filepath.Join(dirPath, "copyright.go"))
 		if err != nil {
-			b, err = os.ReadFile("doc.go")
+			b, err = os.ReadFile(filepath.Join(dirPath, "doc.go"))
 		}
 		if err == nil && bytes.Contains(b, []byte("go:generate go run github.com/microbus-io/copyrighter")) {
 			if flagVerbose {
