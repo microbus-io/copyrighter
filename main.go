@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,10 +56,8 @@ var languages = map[string]CommentMarkers{
 }
 
 var (
-	flagRecurse    bool
-	flagVerbose    bool
-	flagExclude    string
-	flagExcludeMap map[string]bool
+	flagRecurse bool
+	flagVerbose bool
 )
 
 // main runs a code generator that injects a copyright notice to source files.
@@ -66,7 +65,6 @@ func main() {
 	// Parse CLI flags
 	flag.BoolVar(&flagRecurse, "r", false, "Recurse sub-directories")
 	flag.BoolVar(&flagVerbose, "v", false, "Verbose")
-	flag.StringVar(&flagExclude, "x", "", "Comma-separated list of extensions to exclude")
 	flag.Parse()
 
 	err := mainErr()
@@ -79,10 +77,6 @@ func main() {
 // mainErr scans the current directory for a copyright.go or doc.go file and applies the first comment
 // in that file to all other source files in the directory.
 func mainErr() error {
-	flagExcludeMap = map[string]bool{}
-	for _, x := range strings.Split(flagExclude, ",") {
-		flagExcludeMap["."+strings.TrimPrefix(x, ".")] = true
-	}
 	// Load the first comment found in copyright.go or doc.go
 	b, err := os.ReadFile("copyright.go")
 	if err != nil {
@@ -97,7 +91,7 @@ func mainErr() error {
 		return fmt.Errorf("no comment found in copyright.go or doc.go")
 	}
 	// Apply the comment to the files in the current directory
-	err = processDir(".", notice)
+	err = processDir(".", notice, map[string]bool{})
 	if err != nil {
 		return err
 	}
@@ -105,48 +99,75 @@ func mainErr() error {
 }
 
 // processDir applies the copyright notice to the source files in the indicated directory.
-func processDir(dirPath string, notice string) error {
-	if flagVerbose {
-		fmt.Println(dirPath)
-	}
+func processDir(dirPath string, notice string, ignore map[string]bool) error {
 	// Skip subdirectories that contain their own copyright
 	if dirPath != "." {
 		b, err := os.ReadFile(filepath.Join(dirPath, "copyright.go"))
 		if err != nil {
 			b, err = os.ReadFile(filepath.Join(dirPath, "doc.go"))
 		}
-		if err == nil && bytes.Contains(b, []byte("go:generate go run github.com/microbus-io/copyrighter")) {
+		if err == nil && bytes.Contains(b, []byte("github.com/microbus-io/copyrighter")) {
 			if flagVerbose {
-				fmt.Println("  skipped")
+				fmt.Println(dirPath + " (skipped)")
 			}
 			return nil
 		}
 	}
+	if flagVerbose {
+		fmt.Println(dirPath)
+	}
+	// Look for copyright.ignore and add the exceptions to the map
+	b, err := os.ReadFile(filepath.Join(dirPath, "copyright.ignore"))
+	if err == nil {
+		if flagVerbose {
+			fmt.Println("  copyright.ignore")
+		}
+		for _, line := range bytes.Split(b, []byte("\n")) {
+			pattern := strings.TrimSpace(string(line))
+			if pattern != "" && !strings.HasPrefix(pattern, "#") {
+				ignore[filepath.Join(dirPath, pattern)] = true
+				if flagVerbose {
+					fmt.Println("    " + pattern)
+				}
+			}
+		}
+	}
+	// Iterate over files
 	dirEntries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return fmt.Errorf("unable to read files in '%s': %w", dirPath, err)
 	}
+	subDirs := []fs.DirEntry{}
 	for _, de := range dirEntries {
 		if strings.HasPrefix(de.Name(), ".") {
 			// Ignore hidden files
 			continue
 		}
-		if de.IsDir() {
-			if flagRecurse {
-				err = processDir(filepath.Join(dirPath, de.Name()), notice)
-				if err != nil {
-					return err
-				}
+		fileName := filepath.Join(dirPath, de.Name())
+		ext := filepath.Ext(de.Name())
+		// Skip ignored files
+		p1 := filepath.Join(dirPath, "*")
+		p2 := filepath.Join(dirPath, "*.*")
+		p3 := filepath.Join(dirPath, "*"+filepath.Ext(de.Name()))
+		if ignore[fileName] || ignore[p1] || ignore[p2] || ignore[p3] {
+			if flagVerbose {
+				fmt.Printf("  %-32s (ignored)\n", de.Name())
 			}
 			continue
 		}
-		ext := filepath.Ext(de.Name())
-		lang, ok := languages[ext]
-		if !ok || flagExcludeMap[ext] {
+		// Collect sub directories
+		if de.IsDir() {
+			subDirs = append(subDirs, de)
 			continue
 		}
-
-		fileName := filepath.Join(dirPath, de.Name())
+		// Only process known languages
+		lang, ok := languages[ext]
+		if !ok {
+			if flagVerbose {
+				fmt.Printf("  %-32s (disregarded)\n", de.Name())
+			}
+			continue
+		}
 		source, err := os.ReadFile(fileName)
 		if err != nil {
 			return err
@@ -155,12 +176,25 @@ func processDir(dirPath string, notice string) error {
 		ok, err = process(bytes.NewReader(source), &toWrite, lang, notice)
 		if ok {
 			if flagVerbose {
-				fmt.Println("  " + fileName)
+				fmt.Printf("  %-32s (copyrighted)\n", de.Name())
 			}
 			err = os.WriteFile(fileName, toWrite.Bytes(), 0666)
+		} else {
+			if flagVerbose {
+				fmt.Printf("  %-32s (unchanged)\n", de.Name())
+			}
 		}
 		if err != nil {
 			return fmt.Errorf("failed to process '%s': %w", fileName, err)
+		}
+	}
+	// Recurse into sub directories
+	if flagRecurse {
+		for _, de := range subDirs {
+			err = processDir(filepath.Join(dirPath, de.Name()), notice, ignore)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

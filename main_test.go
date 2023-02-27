@@ -192,8 +192,8 @@ func Test_Main(t *testing.T) {
 	_ = os.WriteFile("testdir/test.cs", []byte(`namespace HelloWorld{}`), 0666)
 	defer os.Remove("testdir/test.cs")
 
-	flagExclude = "go"
 	flagRecurse = true
+	flagVerbose = true
 	err := mainErr()
 	assertNoError(t, err)
 
