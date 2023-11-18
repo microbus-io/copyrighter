@@ -61,6 +61,8 @@ The following flags may be added to the `go:generate` directive:
 * `-r` to recurse sub-directories
 * `-v` for verbose output
 
+Using the `-r` flag, it is enough to have a single `copyright.go` at the root of the project directory tree rather than in each directory. Nested `copyright.ignore` files can be used to exclude sub-directories.
+
 # Copyright.ignore
 
 A `copyright.ignore` file can be used to instruct the `Copyrighter` to ignore certain files. It supports the following patterns:
