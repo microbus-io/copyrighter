@@ -30,6 +30,8 @@ Place a `copyright.go` file in the root of the source code directory tree, with:
 * File matching patterns (optional)
 * `package` and `import` statements
 
+Run `go generate` from the command line in the root directory of the project.
+
 ```go
 /*
 Copyright 2023 You
@@ -45,8 +47,6 @@ package yourpackage
 
 import _ "github.com/microbus-io/copyrighter/i"
 ```
-
-Run `go generate` from the command line in the root directory of the project.
 
 ### Copyright Notice
 
