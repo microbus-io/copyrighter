@@ -17,72 +17,91 @@
 * SQL (.sql)
 * TypeScript (.ts)
 * XML (.xml)
-* YAML (.yaml)
+* YAML (.yaml, *.yml)
 
 # Usage
 
 To install, `go get github.com/microbus-io/copyrighter`.
 
-Create a `copyright.go` or `doc.go` file in each source code directory to be processed. Enter a comment with the copyright or license notice at the top of the file, followed by the `go generate` directive.
+Place a `copyright.go` file in the root of the source code directory tree, with:
+
+* A comment at the top of the file with the copyright or license notice
+* A `go generate` directive
+* File matching patterns (optional)
+* `package` and `import` statements
 
 ```go
 /*
 Copyright 2023 You
+All rights reserved
 */
 
 //go:generate go run github.com/microbus-io/copyrighter
+// - *.*
+// + *.go
+// - /vendors/*
 
 package yourpackage
 
 import _ "github.com/microbus-io/copyrighter/i"
 ```
 
+### Copyright Notice
+
 The first comment surrounded by `/*` and `*/` (on separate lines with nothing else added to those lines) or one where each line starts with `//` will be recognized as the copyright notice.
 
 ```go
 /*
-Good
+Copyright 2023 You
+All rights reserved
 */
 
-// Good
-// Good
+...
+```
+```go
+// Copyright 2023 You
+// All rights reserved
 
-/* Bad */
-
-var example /*
-Bad
-*/
-
-var example // Bad
+...
 ```
 
-The following flags may be added to the `go:generate` directive:
+The special constant `YYYY` may be used as placeholder for the current year.
 
-* `-r` to recurse sub-directories
-* `-v` for verbose output
-
-Using the `-r` flag, it is enough to have a single `copyright.go` at the root of the project directory tree rather than in each directory. Nested `copyright.ignore` files can be used to exclude sub-directories.
-
-# Copyright.ignore
-
-A `copyright.ignore` file can be used to instruct the `Copyrighter` to ignore certain files. It supports the following patterns:
-
-```sh
-# Comment
-file.ext
-*.ext
-*.*
-*
-subdir
-subdir/file.ext
-subdir/*.ext
-subdir/*.*
-subdir/*
+```go
+// Copyright 2023-YYYY You
 ```
 
-Patterns are resolved to the directory where they are defined. For example, `*.go` excludes Go files only in the directory in which `copyright.ignore` is located and not in nested sub-directories.
+### File Matching Patterns
 
-The pattern `*` effectively prevents processing of the directory and all nested sub-directories.
+By default, all recognized source file types are processed.
+To customize which files to process, file matching patterns may be added anywhere in the file. Patterns are executed in the order of their appearance in file. The last pattern that matches the file wins.
+
+The following examples excludes all files by default, then re-includes `*.go` and `*.sql` files, except in the `/vendors` directory.
+
+```go
+// - *.*
+// + *.go
+// + *.sql
+// - /vendors/*
+```
+
+A `-` or `+` is used to indicate if this pattern is an exclusion or inclusion pattern.
+
+Patterns that start with a `/` are matched to the root directory where `copyright.go` is located. Otherwise, they are applied to any subdirectory.
+
+The following pattern can be used to exclude hidden files on Unix:
+
+```go
+// - .*
+```
+
+### Verbose Flag
+
+The `-v` flag may be added to the `go:generate` directive to produce verbose output.
+
+```go
+//go:generate go run github.com/microbus-io/copyrighter -v
+```
 
 # Legal
 

@@ -1,5 +1,5 @@
 /*
-Copyright 2023 Microbus LLC and various contributors
+Copyright 2023-2024 Microbus LLC and various contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -191,8 +191,9 @@ func Test_Main(t *testing.T) {
 	defer os.RemoveAll("testdir")
 	_ = os.WriteFile("testdir/test.cs", []byte(`namespace HelloWorld{}`), 0666)
 	defer os.Remove("testdir/test.cs")
+	_ = os.WriteFile("testdir/test.txt", []byte(`Hello, World!`), 0666)
+	defer os.Remove("testdir/test.txt")
 
-	flagRecurse = true
 	flagVerbose = true
 	err := mainErr()
 	assertNoError(t, err)
@@ -204,6 +205,10 @@ func Test_Main(t *testing.T) {
 	f, err = os.ReadFile("testdir/test.cs")
 	if assertNoError(t, err) {
 		assertTrue(t, bytes.Contains(f, []byte("/*\nCopyright")))
+	}
+	f, err = os.ReadFile("testdir/test.txt")
+	if assertNoError(t, err) {
+		assertFalse(t, bytes.Contains(f, []byte("Copyright")))
 	}
 }
 

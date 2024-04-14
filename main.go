@@ -1,5 +1,5 @@
 /*
-Copyright 2023 Microbus LLC and various contributors
+Copyright 2023-2024 Microbus LLC and various contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,18 +25,27 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 )
 
-// CommentMarkers are the comment CommentMarkers for a language.
-type CommentMarkers struct {
+// commentMarkers are the comment markers of a language.
+type commentMarkers struct {
 	single     string
 	multiBegin string
 	multiEnd   string
 }
 
+// patternMatcher is a file matching pattern.
+type patternMatcher struct {
+	Op  string
+	Exp regexp.Regexp
+}
+
 // languages is a map of the markers used to denote comments in each language.
-var languages = map[string]CommentMarkers{
+var languages = map[string]commentMarkers{
 	".c":    {"//", "/*", "*/"},
 	".cpp":  {"//", "/*", "*/"},
 	".cs":   {"//", "/*", "*/"},
@@ -53,17 +62,16 @@ var languages = map[string]CommentMarkers{
 	".ts":   {"//", "/*", "*/"},
 	".xml":  {"", "<!--", "-->"},
 	".yaml": {"#", "", ""},
+	".yml":  {"#", "", ""},
 }
 
 var (
-	flagRecurse bool
 	flagVerbose bool
 )
 
 // main runs a code generator that injects a copyright notice to source files.
 func main() {
 	// Parse CLI flags
-	flag.BoolVar(&flagRecurse, "r", false, "Recurse sub-directories")
 	flag.BoolVar(&flagVerbose, "v", false, "Verbose")
 	flag.Parse()
 
@@ -74,24 +82,59 @@ func main() {
 	}
 }
 
-// mainErr scans the current directory for a copyright.go or doc.go file and applies the first comment
-// in that file to all other source files in the directory.
+// mainErr applies a copyright notice to all subdirectories as indicated by the copyright.go file (if present).
 func mainErr() error {
-	// Load the first comment found in copyright.go or doc.go
+	// Load the first comment found in copyright.go
 	b, err := os.ReadFile("copyright.go")
 	if err != nil {
-		b, err = os.ReadFile("doc.go")
-	}
-	if err != nil {
-		return fmt.Errorf("unable to read copyright.go or doc.go: %w", err)
+		return fmt.Errorf("unable to read copyright.go: %w", err)
 	}
 	source := string(b)
 	notice, ok, _, _ := firstComment(source, languages[".go"])
 	if !ok {
-		return fmt.Errorf("no comment found in copyright.go or doc.go")
+		return fmt.Errorf("no comment found in copyright.go")
 	}
-	// Apply the comment to the files in the current directory
-	err = processDir(".", notice, map[string]bool{})
+	notice = strings.ReplaceAll(notice, "YYYY", strconv.Itoa(time.Now().Year()))
+
+	// Parse the file matching patterns
+	patterns := []patternMatcher{}
+	lines := strings.Split(source, "\n")
+	for _, line := range lines {
+		op := ""
+		if strings.HasPrefix(line, "// + ") {
+			op = "+"
+		} else if strings.HasPrefix(line, "// - ") {
+			op = "-"
+		}
+		if op == "" {
+			continue
+		}
+		p := ""
+		for i, r := range []rune(line[5:]) {
+			if i == 0 {
+				if r == '/' {
+					p += `^`
+				} else {
+					p += `\/`
+				}
+			}
+			if r == '/' {
+				p += `\/`
+			} else if r == '*' {
+				p += `.*`
+			} else {
+				p += regexp.QuoteMeta(string(r))
+			}
+		}
+		p += "$"
+		patterns = append(patterns, patternMatcher{
+			Op:  op,
+			Exp: *regexp.MustCompile(p),
+		})
+	}
+
+	// Apply the comment to the files in all subdirectories
+	err = processDir(".", notice, patterns)
 	if err != nil {
 		return err
 	}
@@ -99,13 +142,10 @@ func mainErr() error {
 }
 
 // processDir applies the copyright notice to the source files in the indicated directory.
-func processDir(dirPath string, notice string, ignore map[string]bool) error {
-	// Skip subdirectories that contain their own copyright
+func processDir(dirPath string, notice string, patterns []patternMatcher) error {
+	// Skip subdirectories that contain their own copyright.go file
 	if dirPath != "." {
 		b, err := os.ReadFile(filepath.Join(dirPath, "copyright.go"))
-		if err != nil {
-			b, err = os.ReadFile(filepath.Join(dirPath, "doc.go"))
-		}
 		if err == nil && bytes.Contains(b, []byte("github.com/microbus-io/copyrighter")) {
 			if flagVerbose {
 				fmt.Println(dirPath + " (skipped)")
@@ -116,22 +156,6 @@ func processDir(dirPath string, notice string, ignore map[string]bool) error {
 	if flagVerbose {
 		fmt.Println(dirPath)
 	}
-	// Look for copyright.ignore and add the exceptions to the map
-	b, err := os.ReadFile(filepath.Join(dirPath, "copyright.ignore"))
-	if err == nil {
-		if flagVerbose {
-			fmt.Println("  copyright.ignore")
-		}
-		for _, line := range bytes.Split(b, []byte("\n")) {
-			pattern := strings.TrimSpace(string(line))
-			if pattern != "" && !strings.HasPrefix(pattern, "#") {
-				ignore[filepath.Join(dirPath, pattern)] = true
-				if flagVerbose {
-					fmt.Println("    " + pattern)
-				}
-			}
-		}
-	}
 	// Iterate over files
 	dirEntries, err := os.ReadDir(dirPath)
 	if err != nil {
@@ -139,17 +163,20 @@ func processDir(dirPath string, notice string, ignore map[string]bool) error {
 	}
 	subDirs := []fs.DirEntry{}
 	for _, de := range dirEntries {
-		if strings.HasPrefix(de.Name(), ".") {
-			// Ignore hidden files
-			continue
-		}
 		fileName := filepath.Join(dirPath, de.Name())
-		ext := filepath.Ext(de.Name())
-		// Skip ignored files
-		p1 := filepath.Join(dirPath, "*")
-		p2 := filepath.Join(dirPath, "*.*")
-		p3 := filepath.Join(dirPath, "*"+filepath.Ext(de.Name()))
-		if ignore[fileName] || ignore[p1] || ignore[p2] || ignore[p3] {
+		// Determine if to process
+		ignore := false
+		for _, p := range patterns {
+			if p.Exp.MatchString("/" + fileName) {
+				if p.Op == "-" {
+					ignore = true
+				}
+				if p.Op == "+" {
+					ignore = false
+				}
+			}
+		}
+		if ignore {
 			if flagVerbose {
 				fmt.Printf("  %-32s (ignored)\n", de.Name())
 			}
@@ -161,6 +188,7 @@ func processDir(dirPath string, notice string, ignore map[string]bool) error {
 			continue
 		}
 		// Only process known languages
+		ext := filepath.Ext(de.Name())
 		lang, ok := languages[ext]
 		if !ok {
 			if flagVerbose {
@@ -174,27 +202,28 @@ func processDir(dirPath string, notice string, ignore map[string]bool) error {
 		}
 		var toWrite bytes.Buffer
 		ok, err = process(bytes.NewReader(source), &toWrite, lang, notice)
+		if err != nil {
+			return fmt.Errorf("failed to process '%s': %w", fileName, err)
+		}
 		if ok {
 			if flagVerbose {
 				fmt.Printf("  %-32s (copyrighted)\n", de.Name())
 			}
 			err = os.WriteFile(fileName, toWrite.Bytes(), 0666)
+			if err != nil {
+				return fmt.Errorf("failed to write back '%s': %w", fileName, err)
+			}
 		} else {
 			if flagVerbose {
 				fmt.Printf("  %-32s (unchanged)\n", de.Name())
 			}
 		}
-		if err != nil {
-			return fmt.Errorf("failed to process '%s': %w", fileName, err)
-		}
 	}
 	// Recurse into sub directories
-	if flagRecurse {
-		for _, de := range subDirs {
-			err = processDir(filepath.Join(dirPath, de.Name()), notice, ignore)
-			if err != nil {
-				return err
-			}
+	for _, de := range subDirs {
+		err = processDir(filepath.Join(dirPath, de.Name()), notice, patterns)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -202,7 +231,7 @@ func processDir(dirPath string, notice string, ignore map[string]bool) error {
 
 // process reads the source code from the reader, inserts the copyright notice if appropriate,
 // and writes the results to the writer.
-func process(r io.Reader, f io.Writer, lang CommentMarkers, notice string) (ok bool, err error) {
+func process(r io.Reader, f io.Writer, lang commentMarkers, notice string) (ok bool, err error) {
 	b, err := io.ReadAll(r)
 	if err != nil {
 		return false, err
@@ -260,7 +289,7 @@ func process(r io.Reader, f io.Writer, lang CommentMarkers, notice string) (ok b
 }
 
 // firstComment returns the first multi-line comment it finds.
-func firstComment(source string, lang CommentMarkers) (comment string, ok bool, fromLine int, toLine int) {
+func firstComment(source string, lang commentMarkers) (comment string, ok bool, fromLine int, toLine int) {
 	lines := strings.Split(source, "\n")
 	var inMulti, inSingle bool
 	for l := 0; l < len(lines); l++ {
