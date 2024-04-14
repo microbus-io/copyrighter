@@ -46,6 +46,8 @@ package yourpackage
 import _ "github.com/microbus-io/copyrighter/i"
 ```
 
+Run `go generate` from the command line in the root directory of the project.
+
 ### Copyright Notice
 
 The first comment surrounded by `/*` and `*/` (on separate lines with nothing else added to those lines) or one where each line starts with `//` will be recognized as the copyright notice.
@@ -74,7 +76,7 @@ The special constant `YYYY` may be used as placeholder for the current year.
 ### File Matching Patterns
 
 By default, all recognized source file types are processed.
-To customize which files to process, file matching patterns may be added anywhere in the file. Patterns are executed in the order of their appearance in file. The last pattern that matches the file wins.
+To customize which files to process, file matching patterns may be added anywhere in `copyright.go`. Patterns are executed in the order of their appearance: the last pattern that matches wins.
 
 The following examples excludes all files by default, then re-includes `*.go` and `*.sql` files, except in the `/vendors` directory.
 
