@@ -176,6 +176,9 @@ func processDir(dirPath string, notice string, patterns []patternMatcher) error 
 				}
 			}
 		}
+		if fileName == "copyright.go" {
+			ignore = true
+		}
 		if ignore {
 			if flagVerbose {
 				fmt.Printf("  %-32s (ignored)\n", de.Name())
