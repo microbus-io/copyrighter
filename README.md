@@ -1,6 +1,6 @@
 # Copyrighter
 
-`Copyrighter` is a utility that leverages Go's code generator to add a copyright notice to source files. Because a license notice today keeps the lawyers away.
+`Copyrighter` is a utility that leverages Go's code generator to add a copyright notice to source files. Because a legal notice today will keep the lawyers away.
 
 It supports the following languages:
 
