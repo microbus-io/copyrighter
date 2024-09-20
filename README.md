@@ -2,6 +2,7 @@
 
 `Copyrighter` is a utility that leverages Go's code generator to add a copyright notice to source files in the following languages:
 
+* Bazel (.bazel)
 * C (.c)
 * C++ (.cpp)
 * C# (.cs)
@@ -15,6 +16,7 @@
 * Python (.py)
 * Shell (.sh)
 * SQL (.sql)
+* Terraform (.tf)
 * TypeScript (.ts)
 * XML (.xml)
 * YAML (.yaml, *.yml)
