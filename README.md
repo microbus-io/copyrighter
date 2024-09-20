@@ -1,6 +1,8 @@
 # Copyrighter
 
-`Copyrighter` is a utility that leverages Go's code generator to add a copyright notice to source files in the following languages:
+`Copyrighter` is a utility that leverages Go's code generator to add a copyright notice to source files. Because a legal notice today keeps the lawyers away.
+
+It recognizes the following source file types:
 
 * Bazel (.bazel)
 * C (.c)
@@ -62,6 +64,9 @@ All rights reserved
 
 ...
 ```
+
+or
+
 ```go
 // Copyright 2023 You
 // All rights reserved
@@ -99,6 +104,8 @@ The following pattern can be used to exclude hidden files on Unix:
 // - .*
 ```
 
+The `Copyrighter` recurses into all descendant subdirectories, except those that contain their own `copyright.go` file with a `go:generate` directive.
+
 ### Verbose Flag
 
 The `-v` flag may be added to the `go:generate` directive to produce verbose output.
@@ -109,4 +116,4 @@ The `-v` flag may be added to the `go:generate` directive to produce verbose out
 
 # Legal
 
-`Copyrighter` is released by `Microbus LLC` under the [Apache 2.0 license](http://www.apache.org/licenses/LICENSE-2.0).
+`Copyrighter` is released by `Microbus LLC` under the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
