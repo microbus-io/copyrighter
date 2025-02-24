@@ -34,8 +34,6 @@ Place a `copyright.go` file in the root of the source code directory tree, with:
 * File matching patterns (optional)
 * `package` and `import` statements
 
-Run `go generate` from the command line in the root directory of the project.
-
 ```go
 /*
 Copyright 2023 You
@@ -52,13 +50,16 @@ package yourpackage
 import _ "github.com/microbus-io/copyrighter/i"
 ```
 
+Run `go generate` from the command line in the root directory of the project.
+
 ### Copyright Notice
 
 The first comment surrounded by `/*` and `*/` (on separate lines with nothing else added to those lines) or one where each line starts with `//` will be recognized as the copyright notice.
+The special constant `YYYY` may be used as placeholder for the current year, and `yyyy` for the year in which the file was last modified.
 
 ```go
 /*
-Copyright 2023 You
+Copyright 2023-YYYY You
 All rights reserved
 */
 
@@ -68,16 +69,10 @@ All rights reserved
 or
 
 ```go
-// Copyright 2023 You
+// Copyright 2023-yyyy You
 // All rights reserved
 
 ...
-```
-
-The special constant `YYYY` may be used as placeholder for the current year.
-
-```go
-// Copyright 2023-YYYY You
 ```
 
 ### File Matching Patterns
@@ -104,7 +99,7 @@ The following pattern can be used to exclude hidden files on Unix:
 // - .*
 ```
 
-The `Copyrighter` recurses into all descendant subdirectories, except those that contain their own `copyright.go` file with a `go:generate` directive.
+The `Copyrighter` recurses into all descendant subdirectories, except those that contain their own `copyright.go` file.
 
 ### Verbose Flag
 

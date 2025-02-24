@@ -1,5 +1,5 @@
 /*
-Copyright 2023-2024 Microbus LLC and various contributors
+Copyright 2023-2025 Microbus LLC and various contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -178,7 +178,7 @@ func processDir(dirPath string, notice string, patterns []patternMatcher) error 
 				}
 			}
 		}
-		if fileName == "copyright.go" {
+		if de.Name() == "copyright.go" {
 			ignore = true
 		}
 		if ignore {
@@ -205,8 +205,13 @@ func processDir(dirPath string, notice string, patterns []patternMatcher) error 
 		if err != nil {
 			return err
 		}
+		fi, err := os.Stat(fileName)
+		if err != nil {
+			return err
+		}
+		indivNotice := strings.ReplaceAll(notice, "yyyy", strconv.Itoa(fi.ModTime().Year()))
 		var toWrite bytes.Buffer
-		ok, err = process(bytes.NewReader(source), &toWrite, lang, notice)
+		ok, err = process(bytes.NewReader(source), &toWrite, lang, indivNotice)
 		if err != nil {
 			return fmt.Errorf("failed to process '%s': %w", fileName, err)
 		}
