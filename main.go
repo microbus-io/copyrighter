@@ -96,7 +96,9 @@ func mainErr() error {
 	if !ok {
 		return fmt.Errorf("no comment found in copyright.go")
 	}
-	notice = strings.ReplaceAll(notice, "YYYY", strconv.Itoa(time.Now().Year()))
+	YYYY := strconv.Itoa(time.Now().Year())
+	notice = strings.ReplaceAll(notice, "YYYY", YYYY)
+	notice = strings.ReplaceAll(notice, YYYY+"-"+YYYY, YYYY) // Autocorrect 2026-2026 to just 2026
 
 	// Parse the file matching patterns
 	patterns := []patternMatcher{}
@@ -209,7 +211,9 @@ func processDir(dirPath string, notice string, patterns []patternMatcher) error 
 		if err != nil {
 			return err
 		}
-		indivNotice := strings.ReplaceAll(notice, "yyyy", strconv.Itoa(fi.ModTime().Year()))
+		yyyy := strconv.Itoa(fi.ModTime().Year())
+		indivNotice := strings.ReplaceAll(notice, "yyyy", yyyy)
+		indivNotice = strings.ReplaceAll(indivNotice, yyyy+"-"+yyyy, yyyy) // Autocorrect 2026-2026 to just 2026
 		var toWrite bytes.Buffer
 		ok, err = process(bytes.NewReader(source), &toWrite, lang, indivNotice)
 		if err != nil {

@@ -62,8 +62,6 @@ The special constant `YYYY` may be used as placeholder for the current year, and
 Copyright 2023-YYYY You
 All rights reserved
 */
-
-...
 ```
 
 or
@@ -71,8 +69,6 @@ or
 ```go
 // Copyright 2023-yyyy You
 // All rights reserved
-
-...
 ```
 
 ### File Matching Patterns
