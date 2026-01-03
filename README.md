@@ -36,7 +36,7 @@ Place a `copyright.go` file in the root of the source code directory tree, with:
 
 ```go
 /*
-Copyright 2023 You
+Copyright 2023-yyyy You
 All rights reserved
 */
 
