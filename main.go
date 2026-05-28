@@ -1,5 +1,5 @@
 /*
-Copyright 2023-2025 Microbus LLC and various contributors
+Copyright 2023-2026 Microbus LLC and various contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -84,37 +84,69 @@ func main() {
 	}
 }
 
-// mainErr applies a copyright notice to all subdirectories as indicated by the copyright.go file (if present).
+// mainErr applies a copyright notice to source files as configured by COPYRIGHT.
 func mainErr() error {
-	// Load the first comment found in copyright.go
-	b, err := os.ReadFile("copyright.go")
+	b, err := os.ReadFile("COPYRIGHT")
 	if err != nil {
-		return fmt.Errorf("unable to read copyright.go: %w", err)
+		return fmt.Errorf("unable to read COPYRIGHT: %w", err)
 	}
-	source := string(b)
-	notice, ok, _, _ := firstComment(source, languages[".go"])
-	if !ok {
-		return fmt.Errorf("no comment found in copyright.go")
+	notice, patternsSection := parseCopyrightTxt(string(b))
+	if notice == "" {
+		return fmt.Errorf("no copyright notice found in COPYRIGHT")
 	}
 	YYYY := strconv.Itoa(time.Now().Year())
 	notice = strings.ReplaceAll(notice, "YYYY", YYYY)
 	notice = strings.ReplaceAll(notice, YYYY+"-"+YYYY, YYYY) // Autocorrect 2026-2026 to just 2026
 
-	// Parse the file matching patterns
-	patterns := []patternMatcher{}
+	patterns := parsePatterns(patternsSection)
+
+	// Apply the comment to the files in all subdirectories
+	err = processDir(".", notice, patterns)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// parseCopyrightTxt splits COPYRIGHT into its notice and patterns sections on a line that is exactly "---".
+// Trailing whitespace and blank lines are trimmed from the notice.
+func parseCopyrightTxt(source string) (notice string, patternsSection string) {
 	lines := strings.Split(source, "\n")
-	for _, line := range lines {
-		op := ""
-		if strings.HasPrefix(line, "// + ") {
-			op = "+"
-		} else if strings.HasPrefix(line, "// - ") {
-			op = "-"
+	sepIdx := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "---" {
+			sepIdx = i
+			break
 		}
-		if op == "" {
+	}
+	if sepIdx < 0 {
+		notice = strings.TrimRight(source, " \t\r\n")
+		return notice, ""
+	}
+	notice = strings.TrimRight(strings.Join(lines[:sepIdx], "\n"), " \t\r\n")
+	patternsSection = strings.Join(lines[sepIdx+1:], "\n")
+	return notice, patternsSection
+}
+
+// parsePatterns parses gitignore-style file selectors. A bare pattern includes files; a leading "!" excludes them.
+// Blank lines and lines beginning with "#" are ignored.
+func parsePatterns(section string) []patternMatcher {
+	patterns := []patternMatcher{}
+	for _, line := range strings.Split(section, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+		op := "+"
+		if strings.HasPrefix(line, "!") {
+			op = "-"
+			line = strings.TrimSpace(line[1:])
+			if line == "" {
+				continue
+			}
+		}
 		p := ""
-		for i, r := range []rune(line[5:]) {
+		for i, r := range []rune(line) {
 			if i == 0 {
 				if r == '/' {
 					p += `^`
@@ -136,21 +168,14 @@ func mainErr() error {
 			Exp: *regexp.MustCompile(p),
 		})
 	}
-
-	// Apply the comment to the files in all subdirectories
-	err = processDir(".", notice, patterns)
-	if err != nil {
-		return err
-	}
-	return nil
+	return patterns
 }
 
 // processDir applies the copyright notice to the source files in the indicated directory.
 func processDir(dirPath string, notice string, patterns []patternMatcher) error {
-	// Skip subdirectories that contain their own copyright.go file
+	// Skip subdirectories that contain their own COPYRIGHT file
 	if dirPath != "." {
-		b, err := os.ReadFile(filepath.Join(dirPath, "copyright.go"))
-		if err == nil && bytes.Contains(b, []byte("github.com/microbus-io/copyrighter")) {
+		if _, err := os.Stat(filepath.Join(dirPath, "COPYRIGHT")); err == nil {
 			if flagVerbose {
 				fmt.Println(dirPath + " (skipped)")
 			}
@@ -180,7 +205,7 @@ func processDir(dirPath string, notice string, patterns []patternMatcher) error 
 				}
 			}
 		}
-		if de.Name() == "copyright.go" {
+		if de.Name() == "COPYRIGHT" {
 			ignore = true
 		}
 		if ignore {

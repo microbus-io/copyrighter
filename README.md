@@ -1,6 +1,6 @@
 # Copyrighter
 
-`Copyrighter` is a utility that leverages Go's code generator to add a copyright notice to source files. Because a legal notice today keeps the lawyers away.
+`Copyrighter` is a Go build tool that adds a copyright notice to source files. Because a legal notice today keeps the lawyers away.
 
 It recognizes the following source file types:
 
@@ -23,86 +23,89 @@ It recognizes the following source file types:
 * XML (.xml)
 * YAML (.yaml, *.yml)
 
-# Usage
+# Installation
 
-To install, `go get github.com/microbus-io/copyrighter`.
+`Copyrighter` is distributed as a Go build tool, which requires Go 1.24 or later.
+From the root directory of your project, add it as a tool dependency:
 
-Place a `copyright.go` file in the root of the source code directory tree, with:
-
-* A comment at the top of the file with the copyright or license notice
-* A `go generate` directive
-* File matching patterns (optional)
-* `package` and `import` statements
-
-```go
-/*
-Copyright 2023-yyyy You
-All rights reserved
-*/
-
-//go:generate go run github.com/microbus-io/copyrighter
-// - *.*
-// + *.go
-// - /vendors/*
-
-package yourpackage
-
-import _ "github.com/microbus-io/copyrighter/i"
+```
+go get -tool github.com/microbus-io/copyrighter
 ```
 
-Run `go generate` from the command line in the root directory of the project.
+This records the tool in your `go.mod` so the version is pinned alongside your other dependencies.
+
+# Usage
+
+Place a `COPYRIGHT` file in the root of the source code directory tree, with:
+
+* The copyright or license notice at the top of the file
+* A `---` divider
+* File matching patterns (optional)
+
+```
+Copyright 2023-yyyy You
+All rights reserved
+
+---
+
+!*.*
+*.go
+!/vendors/*
+```
+
+Then run the tool from the root directory of your project:
+
+```
+go tool copyrighter
+```
 
 ### Copyright Notice
 
-The first comment surrounded by `/*` and `*/` (on separate lines with nothing else added to those lines) or one where each line starts with `//` will be recognized as the copyright notice.
-The special constant `YYYY` may be used as placeholder for the current year, and `yyyy` for the year in which the file was last modified.
+The notice is the literal text above the `---` divider. Blank lines within the notice are preserved; trailing blank lines are trimmed.
 
-```go
-/*
+The special constant `YYYY` may be used as a placeholder for the current year, and `yyyy` for the year in which the file was last modified.
+
+```
 Copyright 2023-YYYY You
 All rights reserved
-*/
-```
-
-or
-
-```go
-// Copyright 2023-yyyy You
-// All rights reserved
 ```
 
 ### File Matching Patterns
 
 By default, all recognized source file types are processed.
-To customize which files to process, file matching patterns may be added anywhere in `copyright.go`. Patterns are executed in the order of their appearance: the last pattern that matches wins.
+To customize which files to process, file matching patterns may be added after the `---` divider in `COPYRIGHT`. Patterns are evaluated in order: the last pattern that matches wins.
 
-The following examples excludes all files by default, then re-includes `*.go` and `*.sql` files, except in the `/vendors` directory.
+Patterns use a `.gitignore`-style syntax, but with the include/exclude semantics inverted:
 
-```go
-// - *.*
-// + *.go
-// + *.sql
-// - /vendors/*
+* A bare pattern **includes** matching files.
+* A pattern prefixed with `!` **excludes** matching files.
+* Lines beginning with `#` and blank lines are ignored.
+
+The following example excludes all files by default, then re-includes `*.go` and `*.sql` files, except in the `/vendors` directory:
+
+```
+!*.*
+*.go
+*.sql
+!/vendors/*
 ```
 
-A `-` or `+` is used to indicate if this pattern is an exclusion or inclusion pattern.
+Patterns that start with a `/` are anchored to the root directory where `COPYRIGHT` is located. Otherwise, they apply at any depth.
 
-Patterns that start with a `/` are matched to the root directory where `copyright.go` is located. Otherwise, they are applied to any subdirectory.
+The following pattern excludes hidden files on Unix:
 
-The following pattern can be used to exclude hidden files on Unix:
-
-```go
-// - .*
+```
+!.*
 ```
 
-The `Copyrighter` recurses into all descendant subdirectories, except those that contain their own `copyright.go` file.
+The `Copyrighter` recurses into all descendant subdirectories, except those that contain their own `COPYRIGHT` file.
 
 ### Verbose Flag
 
-The `-v` flag may be added to the `go:generate` directive to produce verbose output.
+Pass the `-v` flag to produce verbose output:
 
-```go
-//go:generate go run github.com/microbus-io/copyrighter -v
+```
+go tool copyrighter -v
 ```
 
 # Legal
